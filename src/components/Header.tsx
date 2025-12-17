@@ -131,9 +131,9 @@ export default function Header() {
                 )}
               </div>
             ) : (
-              <button className="bg-[#ff6b35] text-white px-6 py-2 rounded-lg hover:bg-[#e55a2b] transition-colors font-medium">
-                Get Quote
-              </button>
+              <Link to="/login" className="bg-[#01478c] text-white px-6 py-2 rounded-lg hover:bg-[#013a72] transition-colors font-medium">
+                Login
+              </Link>
             )}
           </nav>
 
@@ -186,9 +186,9 @@ export default function Header() {
                   </div>
                 </>
               ) : (
-                <button className="bg-[#ff6b35] text-white px-6 py-2 rounded-lg hover:bg-[#e55a2b] transition-colors font-medium">
-                  Get Quote
-                </button>
+                <Link to="/login" className="bg-[#01478c] text-white px-6 py-2 rounded-lg hover:bg-[#013a72] transition-colors font-medium block text-center">
+                  Login
+                </Link>
               )}
             </div>
           </div>
