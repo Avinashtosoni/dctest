@@ -62,6 +62,15 @@ export default function OrdersPage() {
     const fetchOrders = async () => {
         setLoading(true);
         try {
+            // Ensure we have a valid session before fetching
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                console.error('[OrdersPage] No active session');
+                showToast.error('Session expired. Please login again.');
+                setLoading(false);
+                return;
+            }
+
             console.log('[OrdersPage] Fetching orders... isAdmin:', isAdmin, 'role:', role);
 
             // Build query
@@ -75,10 +84,9 @@ export default function OrdersPage() {
 
             // Filter by user_id for non-admin users
             if (!isAdmin) {
-                const { data: { user } } = await supabase.auth.getUser();
-                console.log('[OrdersPage] Non-admin user, filtering by user_id:', user?.id);
-                if (user) {
-                    query = query.eq('user_id', user.id);
+                console.log('[OrdersPage] Non-admin user, filtering by user_id:', session.user?.id);
+                if (session.user) {
+                    query = query.eq('user_id', session.user.id);
                 }
             } else {
                 console.log('[OrdersPage] Admin user, fetching all orders');

@@ -98,7 +98,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            console.log('Auth state changed:', event, session?.user?.email);
+            // Skip TOKEN_REFRESHED events to prevent flickering
+            // The session is already valid, no need to re-fetch role
+            if (event === 'TOKEN_REFRESHED') {
+                console.log('[AuthContext] Token refreshed, maintaining current session');
+                if (isMounted.current && session) {
+                    setSession(session);
+                    setUser(session.user);
+                }
+                return;
+            }
+
+            console.log('[AuthContext] Auth state changed:', event, session?.user?.email);
 
             if (!isMounted.current) return;
 

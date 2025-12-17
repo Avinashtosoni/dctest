@@ -75,6 +75,15 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         }
 
         try {
+            // Validate session before fetching
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                console.log('[NotificationContext] No valid session, skipping fetch');
+                setNotifications([]);
+                setLoading(false);
+                return;
+            }
+
             const { data, error } = await supabase
                 .from('user_notifications')
                 .select(`
