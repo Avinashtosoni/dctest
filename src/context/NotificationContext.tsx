@@ -84,39 +84,59 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
                 return;
             }
 
-            const { data, error } = await supabase
+            // Step 1: Fetch user_notifications (status)
+            const { data: userNotifs, error: userNotifError } = await supabase
                 .from('user_notifications')
-                .select(`
-                    id,
-                    is_read,
-                    read_at,
-                    created_at,
-                    notification:notifications (
-                        id,
-                        title,
-                        message,
-                        type,
-                        priority,
-                        category,
-                        created_by,
-                        action_url,
-                        action_label,
-                        attachment_url,
-                        attachment_name,
-                        attachment_type,
-                        metadata,
-                        created_at
-                    )
-                `)
+                .select('id, notification_id, is_read, read_at, created_at')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false })
                 .limit(50);
 
-            if (error) throw error;
+            if (userNotifError) {
+                console.error('[NotificationContext] Error fetching user notifications:', userNotifError);
+                throw userNotifError;
+            }
 
-            // Fetch sender profiles for notifications that have created_by
-            const senderIds = [...new Set((data || [])
-                .map((item: any) => item.notification?.created_by)
+            if (!userNotifs || userNotifs.length === 0) {
+                setNotifications([]);
+                setLoading(false);
+                return;
+            }
+
+            // Step 2: Fetch the actual notifications details
+            const notificationIds = [...new Set(userNotifs.map(un => un.notification_id))];
+
+            const { data: notifDetails, error: notifError } = await supabase
+                .from('notifications')
+                .select(`
+                    id,
+                    title,
+                    message,
+                    type,
+                    priority,
+                    category,
+                    created_by,
+                    action_url,
+                    action_label,
+                    attachment_url,
+                    attachment_name,
+                    attachment_type,
+                    metadata,
+                    created_at
+                `)
+                .in('id', notificationIds);
+
+            if (notifError) {
+                console.error('[NotificationContext] Error fetching notification details:', notifError);
+                throw notifError;
+            }
+
+            // Create a lookup map for notifications
+            const notifMap = new Map(notifDetails?.map(n => [n.id, n]) || []);
+
+            // Step 3: Fetch sender profiles
+            const senderIds = [...new Set((notifDetails || [])
+                .map(n => n.created_by)
                 .filter(Boolean))];
 
             let senderProfiles: Record<string, NotificationSender> = {};
@@ -136,31 +156,36 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
                 });
             }
 
-            const mapped: NotificationWithDetails[] = (data || []).map((item: any) => {
-                const notif = item.notification;
-                const attachment = notif?.attachment_url ? {
+            // Step 4: Combine everything
+            const mapped: NotificationWithDetails[] = userNotifs.map((item: any) => {
+                const notif = notifMap.get(item.notification_id);
+
+                // Skip if notification detail is missing (shouldn't happen with integrity, but good for safety)
+                if (!notif) return null;
+
+                const attachment = notif.attachment_url ? {
                     name: notif.attachment_name || 'Attachment',
                     type: (notif.attachment_type?.includes('image') ? 'image' :
                         notif.attachment_type?.includes('video') ? 'video' : 'file') as 'image' | 'video' | 'file',
                     url: notif.attachment_url
-                } : notif?.metadata?.attachment;
+                } : notif.metadata?.attachment;
 
                 return {
                     id: item.id,
-                    notificationId: notif?.id || '',
-                    title: notif?.title || 'Notification',
-                    message: notif?.message || '',
-                    type: notif?.type || 'info',
-                    timestamp: new Date(item.created_at),
+                    notificationId: notif.id,
+                    title: notif.title || 'Notification',
+                    message: notif.message || '',
+                    type: notif.type || 'info',
+                    timestamp: new Date(item.created_at), // Use interaction time or creation time as preferred
                     isRead: item.is_read,
                     attachment,
-                    priority: notif?.priority,
-                    category: notif?.category,
-                    sender: notif?.created_by ? senderProfiles[notif.created_by] : undefined,
-                    actionUrl: notif?.action_url,
-                    actionLabel: notif?.action_label
+                    priority: notif.priority,
+                    category: notif.category,
+                    sender: notif.created_by ? senderProfiles[notif.created_by] : undefined,
+                    actionUrl: notif.action_url,
+                    actionLabel: notif.action_label
                 };
-            });
+            }).filter(Boolean) as NotificationWithDetails[];
 
             setNotifications(mapped);
         } catch (error) {
